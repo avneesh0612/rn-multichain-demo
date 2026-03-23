@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "prebuild:ios": "export ENTERPRISE_REPOSITORY='https://fbinfra555artifactory.jfrog.io/artifactory/fireblocks-gradle' && export RCT_BUILD_HERMES_FROM_SOURCE=true && export RCT_USE_PREBUILT_RNCORE=0 && export RCT_USE_RN_DEP=0 && rm -rf ios && rm -rf .expo/ && npm pack expo-template-bare-minimum@54.0.31 && npx expo prebuild --template ./expo-template-bare-minimum-54.0.31.tgz --clean --platform ios && rm -rf expo-template-bare-minimum-54.0.31.tgz"
   },
   "dependencies": {
     "@dynamic-labs/client": "^4.70.0",
@@ -20,13 +21,13 @@
     "@react-native-anywhere/polyfill-base64": "^0.0.1-alpha.0",
     "bs58": "^6.0.0",
     "bs58check": "^4.0.0",
-    "expo": "~54.0.33",
+    "expo": "54.0.31",
     "expo-linking": "^55.0.7",
     "expo-secure-store": "^55.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "^55.0.9",
     "react": "19.1.0",
-    "react-native": "0.81.5",
+    "react-native": "0.81.0",
     "react-native-webview": "^13.16.1",
     "viem": "^2.46.3"
   },
