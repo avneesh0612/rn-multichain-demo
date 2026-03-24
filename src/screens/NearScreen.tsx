@@ -1,7 +1,12 @@
 import React from "react";
 import ChainCard from "../components/ChainCard";
 import { dynamicClient } from "../dynamicClient";
-import { nearMessageDigest, verifyNearSignature } from "../lib/near";
+import {
+  nearMessageDigest,
+  verifyNearSignature,
+  getNearBalance,
+  sendNearTransfer,
+} from "../lib/near";
 
 interface Props {
   nearAddress: string;
@@ -9,23 +14,22 @@ interface Props {
 }
 
 export default function NearScreen({ nearAddress, solAddress }: Props) {
-  const handleSign = async (message: string): Promise<string> => {
+  const signWithSol = async (hexDigest: string): Promise<string> => {
     const wallet = dynamicClient.wallets.userWallets.find(
       (w) => w.chain === "SOL"
     );
     if (!wallet) throw new Error("Solana wallet not found");
 
-    // Compute NEAR message digest (SHA-256 with NEAR prefix)
-    const hexDigest = nearMessageDigest(message);
-
-    // Sign the hex digest with the SOL wallet — the SDK detects hex
-    // and signs the raw bytes with Ed25519
     const { signedMessage } = await dynamicClient.wallets.signMessage({
       wallet,
       message: hexDigest,
     });
-
     return signedMessage;
+  };
+
+  const handleSign = async (message: string): Promise<string> => {
+    const hexDigest = nearMessageDigest(message);
+    return signWithSol(hexDigest);
   };
 
   const handleVerify = async (
@@ -43,6 +47,17 @@ export default function NearScreen({ nearAddress, solAddress }: Props) {
     }
   };
 
+  const handleGetBalance = async (): Promise<string> => {
+    return getNearBalance(nearAddress);
+  };
+
+  const handleTransfer = async (
+    to: string,
+    amount: number
+  ): Promise<string> => {
+    return sendNearTransfer(to, amount, nearAddress, solAddress, signWithSol);
+  };
+
   return (
     <ChainCard
       chainName="NEAR"
@@ -50,8 +65,11 @@ export default function NearScreen({ nearAddress, solAddress }: Props) {
       address={nearAddress}
       isDerived={true}
       sourceChain="Solana"
+      symbol="NEAR"
       onSign={handleSign}
       onVerify={handleVerify}
+      onGetBalance={handleGetBalance}
+      onTransfer={handleTransfer}
     />
   );
 }

@@ -1,32 +1,33 @@
 import React from "react";
 import ChainCard from "../components/ChainCard";
 import { dynamicClient } from "../dynamicClient";
-import { tronMessageDigest, verifyTronSignature } from "../lib/tron";
+import {
+  tronMessageDigest,
+  verifyTronSignature,
+  getTronBalance,
+  sendTronTransfer,
+} from "../lib/tron";
+import { strip0x } from "../lib/bytes";
 
 interface Props {
   tronAddress: string;
 }
 
 export default function TronScreen({ tronAddress }: Props) {
-  const handleSign = async (message: string): Promise<string> => {
+  const signRaw = async (digest: string): Promise<string> => {
     const wallet = dynamicClient.wallets.userWallets.find(
       (w) => w.chain === "EVM"
     );
     if (!wallet) throw new Error("EVM wallet not found");
+    return dynamicClient.wallets.waas.signRawMessage(wallet.id, {
+      accountAddress: wallet.address,
+      message: digest,
+    });
+  };
 
-    // Compute TRON message digest (keccak256 with TRON prefix)
+  const handleSign = async (message: string): Promise<string> => {
     const digest = tronMessageDigest(message);
-
-    // Sign the raw 32-byte digest via WaaS
-    const signature = await dynamicClient.wallets.waas.signRawMessage(
-      wallet.id,
-      {
-        accountAddress: wallet.address,
-        message: digest,
-      }
-    );
-
-    return signature;
+    return signRaw(digest);
   };
 
   const handleVerify = async (
@@ -44,6 +45,17 @@ export default function TronScreen({ tronAddress }: Props) {
     }
   };
 
+  const handleGetBalance = async (): Promise<string> => {
+    return getTronBalance(tronAddress);
+  };
+
+  const handleTransfer = async (
+    to: string,
+    amount: number
+  ): Promise<string> => {
+    return sendTronTransfer(to, amount, tronAddress, signRaw);
+  };
+
   return (
     <ChainCard
       chainName="TRON"
@@ -51,8 +63,11 @@ export default function TronScreen({ tronAddress }: Props) {
       address={tronAddress}
       isDerived={true}
       sourceChain="Ethereum"
+      symbol="TRX"
       onSign={handleSign}
       onVerify={handleVerify}
+      onGetBalance={handleGetBalance}
+      onTransfer={handleTransfer}
     />
   );
 }

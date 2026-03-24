@@ -4,9 +4,13 @@ import { ViemExtension } from "@dynamic-labs/viem-extension";
 import { SolanaExtension } from "@dynamic-labs/solana-extension";
 
 export const dynamicClient = createClient({
-  environmentId: "a97642d3-3eab-457e-ad75-a95664c12102",
+  environmentId: "3e219b76-dcf1-40ab-aad6-652c4dfab4cc",
   appName: "RN Multichain Demo",
 })
-  .extend(ReactNativeExtension())
+  .extend(
+    ReactNativeExtension({
+      appOrigin: "https://rn-multichain-demo.dynamic.xyz",
+    })
+  )
   .extend(ViemExtension())
   .extend(SolanaExtension());

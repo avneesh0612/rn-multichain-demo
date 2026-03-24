@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,8 +15,11 @@ interface ChainCardProps {
   address: string;
   isDerived: boolean;
   sourceChain?: string;
+  symbol: string;
   onSign: (message: string) => Promise<string>;
   onVerify?: (message: string, signature: string) => Promise<string>;
+  onGetBalance?: () => Promise<string>;
+  onTransfer?: (to: string, amount: number) => Promise<string>;
 }
 
 export default function ChainCard({
@@ -25,14 +28,42 @@ export default function ChainCard({
   address,
   isDerived,
   sourceChain,
+  symbol,
   onSign,
   onVerify,
+  onGetBalance,
+  onTransfer,
 }: ChainCardProps) {
   const [message, setMessage] = useState("Hello from Dynamic RN!");
   const [signature, setSignature] = useState<string | null>(null);
   const [verifyResult, setVerifyResult] = useState<string | null>(null);
+  const [balance, setBalance] = useState<string | null>(null);
+  const [recipient, setRecipient] = useState("");
+  const [amount, setAmount] = useState("");
+  const [txHash, setTxHash] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [transferLoading, setTransferLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (onGetBalance) {
+      refreshBalance();
+    }
+  }, []);
+
+  const refreshBalance = async () => {
+    if (!onGetBalance) return;
+    setBalanceLoading(true);
+    try {
+      const bal = await onGetBalance();
+      setBalance(bal);
+    } catch {
+      setBalance("error");
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
 
   const handleSign = async () => {
     setLoading(true);
@@ -64,6 +95,22 @@ export default function ChainCard({
     }
   };
 
+  const handleTransfer = async () => {
+    if (!onTransfer || !recipient.trim() || !amount.trim()) return;
+    setTransferLoading(true);
+    setError(null);
+    setTxHash(null);
+    try {
+      const hash = await onTransfer(recipient.trim(), parseFloat(amount));
+      setTxHash(hash);
+      refreshBalance();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTransferLoading(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -82,7 +129,29 @@ export default function ChainCard({
         {address}
       </Text>
 
-      <Text style={styles.label}>Message</Text>
+      {/* Balance Section */}
+      {onGetBalance && (
+        <View style={styles.balanceRow}>
+          <Text style={styles.label}>Balance</Text>
+          <TouchableOpacity onPress={refreshBalance} disabled={balanceLoading}>
+            <Text style={styles.refreshText}>
+              {balanceLoading ? "..." : "Refresh"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {onGetBalance && (
+        <Text style={styles.balanceValue}>
+          {balance === null
+            ? "Loading..."
+            : balance === "error"
+            ? "Failed to load"
+            : `${balance} ${symbol}`}
+        </Text>
+      )}
+
+      {/* Sign Section */}
+      <Text style={styles.sectionTitle}>Sign Message</Text>
       <TextInput
         style={styles.input}
         value={message}
@@ -112,7 +181,11 @@ export default function ChainCard({
 
           {onVerify && (
             <TouchableOpacity
-              style={[styles.button, styles.verifyButton, loading && styles.buttonDisabled]}
+              style={[
+                styles.button,
+                styles.verifyButton,
+                loading && styles.buttonDisabled,
+              ]}
               onPress={handleVerify}
               disabled={loading}
             >
@@ -129,12 +202,64 @@ export default function ChainCard({
         </>
       )}
 
+      {/* Transfer Section */}
+      {onTransfer && (
+        <>
+          <Text style={styles.sectionTitle}>Transfer</Text>
+          <TextInput
+            style={styles.input}
+            value={recipient}
+            onChangeText={setRecipient}
+            placeholder="Recipient address"
+            placeholderTextColor="#888"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TextInput
+            style={[styles.input, { marginTop: 8 }]}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder={`Amount (${symbol})`}
+            placeholderTextColor="#888"
+            keyboardType="decimal-pad"
+          />
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.transferButton,
+              transferLoading && styles.buttonDisabled,
+            ]}
+            onPress={handleTransfer}
+            disabled={transferLoading}
+          >
+            {transferLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>
+                Send {symbol}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {txHash && (
+            <>
+              <Text style={styles.label}>Transaction Hash</Text>
+              <Text style={styles.result} selectable numberOfLines={2}>
+                {txHash}
+              </Text>
+            </>
+          )}
+        </>
+      )}
+
       {error && (
         <>
           <Text style={styles.label}>Error</Text>
           <Text style={styles.error}>{error}</Text>
         </>
       )}
+
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
@@ -179,12 +304,41 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#ccc",
+    marginTop: 24,
+    marginBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#2a2a4a",
+    paddingTop: 16,
+  },
   address: {
     fontSize: 13,
     color: "#7b7fda",
     fontFamily: "monospace",
     backgroundColor: "#2a2a4a",
     padding: 10,
+    borderRadius: 6,
+  },
+  balanceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  refreshText: {
+    color: "#7b7fda",
+    fontSize: 13,
+  },
+  balanceValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+    backgroundColor: "#2a2a4a",
+    padding: 12,
     borderRadius: 6,
   },
   input: {
@@ -201,10 +355,13 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
-    marginTop: 16,
+    marginTop: 12,
   },
   verifyButton: {
     backgroundColor: "#2a8a4a",
+  },
+  transferButton: {
+    backgroundColor: "#d97706",
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -236,5 +393,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#3a1a1a",
     padding: 10,
     borderRadius: 6,
+    marginTop: 4,
   },
 });

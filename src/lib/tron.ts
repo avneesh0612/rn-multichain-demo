@@ -47,6 +47,98 @@ export function tronMessageDigest(message: string): string {
   return bytesToHex(digest);
 }
 
+// -- Balance --
+
+const TRON_API = "https://nile.trongrid.io";
+
+/**
+ * Query TRX balance via TronGrid REST API.
+ * Returns human-readable string in TRX (SUN / 1e6).
+ */
+export async function getTronBalance(tronAddress: string): Promise<string> {
+  try {
+    const res = await fetch(`${TRON_API}/v1/accounts/${tronAddress}`);
+    if (!res.ok) return "0";
+    const data = await res.json();
+    if (!data.data?.[0]?.balance) return "0";
+    return (Number(data.data[0].balance) / 1_000_000).toString();
+  } catch {
+    return "0";
+  }
+}
+
+// -- Transfer --
+
+/**
+ * Send TRX via TronGrid REST API.
+ * 1. POST /wallet/createtransaction → unsigned tx with txID
+ * 2. Sign txID with signRawMessage
+ * 3. POST /wallet/broadcasttransaction
+ * Returns transaction ID.
+ */
+export async function sendTronTransfer(
+  to: string,
+  amountTrx: number,
+  fromTronAddress: string,
+  signRawFn: (digest: string) => Promise<string>,
+): Promise<string> {
+  const amountSun = Math.round(amountTrx * 1_000_000);
+
+  // Convert TRON base58 addresses to hex for the API
+  const toHex = tronAddressToHex(to);
+  const fromHex = tronAddressToHex(fromTronAddress);
+
+  // 1. Create unsigned transaction
+  const createRes = await fetch(`${TRON_API}/wallet/createtransaction`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to_address: toHex,
+      owner_address: fromHex,
+      amount: amountSun,
+      visible: false,
+    }),
+  });
+  if (!createRes.ok) {
+    throw new Error(`Failed to create transaction: ${createRes.status}`);
+  }
+  const unsignedTx = await createRes.json();
+  if (!unsignedTx.txID) {
+    throw new Error(unsignedTx.Error || "Failed to create transaction");
+  }
+
+  // 2. Sign the txID (already 64-char hex = 32 bytes)
+  const signature = await signRawFn(unsignedTx.txID);
+
+  // 3. Broadcast
+  const broadcastRes = await fetch(`${TRON_API}/wallet/broadcasttransaction`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...unsignedTx,
+      signature: [strip0x(signature)],
+    }),
+  });
+  if (!broadcastRes.ok) {
+    throw new Error(`Broadcast failed: ${broadcastRes.status}`);
+  }
+  const result = await broadcastRes.json();
+  if (!result.result) {
+    throw new Error(result.message || "Broadcast failed");
+  }
+  return unsignedTx.txID;
+}
+
+/**
+ * Convert a TRON base58check address to hex (41-prefixed).
+ */
+function tronAddressToHex(address: string): string {
+  const decoded = bs58.decode(address);
+  // Remove 4-byte checksum
+  const payload = decoded.slice(0, decoded.length - 4);
+  return bytesToHex(payload);
+}
+
 // -- Verification --
 
 /**

@@ -1,5 +1,14 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { dynamicClient } from "../dynamicClient";
 
 interface LoginScreenProps {
@@ -7,11 +16,13 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const handleLogin = () => {
-    dynamicClient.ui.auth.show();
-  };
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handler = () => onLogin();
     dynamicClient.auth.on("authSuccess", handler);
     return () => {
@@ -19,8 +30,51 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     };
   }, [onLogin]);
 
+  const handleSendOTP = async () => {
+    if (!email.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await dynamicClient.auth.email.sendOTP(email.trim());
+      setOtpSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (!otp.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await dynamicClient.auth.email.verifyOTP(otp.trim());
+      // authSuccess event will trigger onLogin
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await dynamicClient.auth.email.resendOTP();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <Text style={styles.title}>Multichain Demo</Text>
       <Text style={styles.subtitle}>
         Sign messages across 4 chains using{"\n"}2 key types: ECDSA + Ed25519
@@ -39,10 +93,76 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Sign In with Dynamic</Text>
-      </TouchableOpacity>
-    </View>
+      {!otpSent ? (
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Enter your email"
+            placeholderTextColor="#666"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!loading}
+          />
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSendOTP}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Send OTP</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.form}>
+          <Text style={styles.sentLabel}>OTP sent to {email}</Text>
+          <TextInput
+            style={styles.input}
+            value={otp}
+            onChangeText={setOtp}
+            placeholder="Enter OTP code"
+            placeholderTextColor="#666"
+            keyboardType="number-pad"
+            autoComplete="one-time-code"
+            editable={!loading}
+          />
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleVerifyOTP}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Verify OTP</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.resendButton}
+            onPress={handleResendOTP}
+            disabled={loading}
+          >
+            <Text style={styles.resendText}>Resend OTP</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setOtpSent(false);
+              setOtp("");
+              setError(null);
+            }}
+          >
+            <Text style={styles.resendText}>Use a different email</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {error && <Text style={styles.error}>{error}</Text>}
+    </KeyboardAvoidingView>
   );
 }
 
@@ -91,15 +211,58 @@ const styles = StyleSheet.create({
     color: "#ccc",
     marginBottom: 4,
   },
+  form: {
+    width: "100%",
+    maxWidth: 320,
+  },
+  sentLabel: {
+    color: "#7b7fda",
+    fontSize: 13,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  input: {
+    backgroundColor: "#1a1a2e",
+    color: "#fff",
+    padding: 14,
+    borderRadius: 10,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#3a3a5a",
+    marginBottom: 12,
+  },
   button: {
     backgroundColor: "#4a4af0",
-    paddingHorizontal: 32,
-    paddingVertical: 16,
+    padding: 16,
     borderRadius: 12,
+    alignItems: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "600",
+  },
+  resendButton: {
+    marginTop: 16,
+    alignItems: "center",
+  },
+  resendText: {
+    color: "#7b7fda",
+    fontSize: 14,
+    marginTop: 12,
+    textAlign: "center",
+  },
+  error: {
+    color: "#f87171",
+    fontSize: 13,
+    marginTop: 16,
+    textAlign: "center",
+    backgroundColor: "#3a1a1a",
+    padding: 10,
+    borderRadius: 6,
+    maxWidth: 320,
   },
 });
