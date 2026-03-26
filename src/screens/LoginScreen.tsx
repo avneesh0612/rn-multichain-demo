@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,24 +11,12 @@ import {
 } from "react-native";
 import { dynamicClient } from "../dynamicClient";
 
-interface LoginScreenProps {
-  onLogin: () => void;
-}
-
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handler = () => onLogin();
-    dynamicClient.auth.on("authSuccess", handler);
-    return () => {
-      dynamicClient.auth.off("authSuccess", handler);
-    };
-  }, [onLogin]);
 
   const handleSendOTP = async () => {
     if (!email.trim()) return;
@@ -77,7 +65,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     >
       <Text style={styles.title}>Multichain Demo</Text>
       <Text style={styles.subtitle}>
-        Sign messages across 4 chains using{"\n"}2 key types: ECDSA + Ed25519
+        Sign messages across 10 chains using{"\n"}2 key types: ECDSA + Ed25519
       </Text>
 
       <View style={styles.chains}>
@@ -85,11 +73,17 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           <Text style={styles.groupLabel}>ECDSA (secp256k1)</Text>
           <Text style={styles.chainItem}>Ethereum (EVM)</Text>
           <Text style={styles.chainItem}>TRON (derived)</Text>
+          <Text style={styles.chainItem}>Cosmos (derived)</Text>
+          <Text style={styles.chainItem}>XRP (derived)</Text>
+          <Text style={styles.chainItem}>Starknet (derived)</Text>
         </View>
         <View style={styles.chainGroup}>
           <Text style={styles.groupLabel}>Ed25519</Text>
           <Text style={styles.chainItem}>Solana</Text>
           <Text style={styles.chainItem}>NEAR (derived)</Text>
+          <Text style={styles.chainItem}>Aptos (derived)</Text>
+          <Text style={styles.chainItem}>Cardano (derived)</Text>
+          <Text style={styles.chainItem}>Mavryk (derived)</Text>
         </View>
       </View>
 

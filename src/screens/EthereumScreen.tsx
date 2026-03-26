@@ -43,6 +43,7 @@ export default function EthereumScreen({ evmAddress }: Props) {
 
     const walletClient = await dynamicClient.viem.createWalletClient({
       wallet,
+      chain: sepolia,
     });
     const hash = await walletClient.sendTransaction({
       to: to as `0x${string}`,

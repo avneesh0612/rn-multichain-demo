@@ -55,15 +55,8 @@ export async function getNearBalance(accountId: string): Promise<string> {
     const fracStr = frac.toString().padStart(24, "0").replace(/0+$/, "");
     if (fracStr.length === 0) return whole.toString();
     return `${whole}.${fracStr}`;
-  } catch (err) {
-    if (
-      err instanceof Error &&
-      (err.message.includes("does not exist") ||
-        err.message.includes("UNKNOWN_ACCOUNT"))
-    ) {
-      return "0";
-    }
-    throw err;
+  } catch {
+    return "0";
   }
 }
 

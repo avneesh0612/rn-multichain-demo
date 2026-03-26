@@ -1,34 +1,19 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useCallback } from "react";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, StyleSheet } from "react-native";
+import { ActivityIndicator, SafeAreaView, StyleSheet, View } from "react-native";
+import { useReactiveClient } from "@dynamic-labs/react-hooks";
 import { dynamicClient } from "./src/dynamicClient";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // useReactiveClient re-renders when sdk.loaded or auth.token changes.
+  // sdk.loaded becomes true only after the WebView has initialised AND
+  // re-hydrated any saved session from expo-secure-store — checking auth
+  // before that always returns null (the previous logout bug).
+  const { sdk, auth } = useReactiveClient(dynamicClient);
 
-  useEffect(() => {
-    // Check if already authenticated
-    if (dynamicClient.auth.authenticatedUser != null) {
-      setIsAuthenticated(true);
-    }
-
-    // Listen for auth changes
-    const handleAuthSuccess = () => setIsAuthenticated(true);
-    const handleLogout = () => setIsAuthenticated(false);
-
-    dynamicClient.auth.on("authSuccess", handleAuthSuccess);
-    dynamicClient.auth.on("loggedOut", handleLogout);
-
-    return () => {
-      dynamicClient.auth.off("authSuccess", handleAuthSuccess);
-      dynamicClient.auth.off("loggedOut", handleLogout);
-    };
-  }, []);
-
-  const handleLogin = useCallback(() => setIsAuthenticated(true), []);
-  const handleLoggedOut = useCallback(() => setIsAuthenticated(false), []);
+  const handleLoggedOut = useCallback(() => dynamicClient.auth.logout(), []);
 
   return (
     <>
@@ -36,10 +21,14 @@ export default function App() {
       <dynamicClient.reactNative.WebView />
 
       <SafeAreaView style={styles.container}>
-        {isAuthenticated ? (
+        {!sdk.loaded ? (
+          <View style={styles.loading}>
+            <ActivityIndicator size="large" color="#4a4af0" />
+          </View>
+        ) : auth.token ? (
           <DashboardScreen onLogout={handleLoggedOut} />
         ) : (
-          <LoginScreen onLogin={handleLogin} />
+          <LoginScreen />
         )}
       </SafeAreaView>
 
@@ -52,5 +41,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f0f23",
+  },
+  loading: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

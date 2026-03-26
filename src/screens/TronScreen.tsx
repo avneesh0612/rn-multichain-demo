@@ -19,10 +19,22 @@ export default function TronScreen({ tronAddress }: Props) {
       (w) => w.chain === "EVM"
     );
     if (!wallet) throw new Error("EVM wallet not found");
-    return dynamicClient.wallets.waas.signRawMessage(wallet.id, {
-      accountAddress: wallet.address,
-      message: digest,
-    });
+    const doSign = () =>
+      dynamicClient.wallets.waas.signRawMessage(wallet.id, {
+        accountAddress: wallet.address,
+        message: digest,
+      });
+    try {
+      return await doSign();
+    } catch (e) {
+      // ML-KEM session state can go stale after an async gap (e.g. the
+      // TronGrid createtransaction fetch). Retry once after a short delay.
+      if (e instanceof Error && e.message.toLowerCase().includes("handshake")) {
+        await new Promise((r) => setTimeout(r, 800));
+        return doSign();
+      }
+      throw e;
+    }
   };
 
   const handleSign = async (message: string): Promise<string> => {

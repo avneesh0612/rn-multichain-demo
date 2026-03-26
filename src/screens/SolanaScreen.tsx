@@ -9,6 +9,9 @@ import {
 import ChainCard from "../components/ChainCard";
 import { dynamicClient } from "../dynamicClient";
 
+const DEVNET_RPC = "https://api.devnet.solana.com";
+const SOLANA_CONNECTION = new Connection(DEVNET_RPC, "confirmed");
+
 interface Props {
   solAddress: string;
 }
@@ -29,10 +32,19 @@ export default function SolanaScreen({ solAddress }: Props) {
   };
 
   const handleGetBalance = async (): Promise<string> => {
-    const connection = dynamicClient.solana.getConnection();
-    const pubkey = new PublicKey(solAddress);
-    const balance = await connection.getBalance(pubkey);
-    return (balance / LAMPORTS_PER_SOL).toString();
+    const res = await fetch(DEVNET_RPC, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getBalance",
+        params: [solAddress],
+      }),
+    });
+    const data = await res.json();
+    const lamports: number = data.result?.value ?? 0;
+    return (lamports / LAMPORTS_PER_SOL).toString();
   };
 
   const handleTransfer = async (
@@ -45,7 +57,7 @@ export default function SolanaScreen({ solAddress }: Props) {
     if (!wallet) throw new Error("Solana wallet not found");
 
     const signer = dynamicClient.solana.getSigner({ wallet });
-    const connection = dynamicClient.solana.getConnection();
+    const connection = SOLANA_CONNECTION;
 
     const fromPubkey = new PublicKey(solAddress);
     const toPubkey = new PublicKey(to);

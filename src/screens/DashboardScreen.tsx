@@ -5,16 +5,36 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { dynamicClient } from "../dynamicClient";
 import { deriveTronAddress } from "../lib/tron";
 import { deriveNearAddress } from "../lib/near";
+import { deriveAptosAddress } from "../lib/aptos";
+import { deriveCardanoAddress } from "../lib/cardano";
+import { deriveMavrykAddress } from "../lib/mavryk";
 import EthereumScreen from "./EthereumScreen";
 import TronScreen from "./TronScreen";
 import SolanaScreen from "./SolanaScreen";
 import NearScreen from "./NearScreen";
+import AptosScreen from "./AptosScreen";
+import CardanoScreen from "./CardanoScreen";
+import MavrykScreen from "./MavrykScreen";
+import CosmosScreen from "./CosmosScreen";
+import XrpScreen from "./XrpScreen";
+import StarknetScreen from "./StarknetScreen";
 
-type Tab = "ethereum" | "tron" | "solana" | "near";
+type Tab =
+  | "ethereum"
+  | "tron"
+  | "solana"
+  | "near"
+  | "aptos"
+  | "cardano"
+  | "mavryk"
+  | "cosmos"
+  | "xrp"
+  | "starknet";
 
 interface Props {
   onLogout: () => void;
@@ -26,6 +46,9 @@ export default function DashboardScreen({ onLogout }: Props) {
   const [solAddress, setSolAddress] = useState<string | null>(null);
   const [tronAddress, setTronAddress] = useState<string | null>(null);
   const [nearAddress, setNearAddress] = useState<string | null>(null);
+  const [aptosAddress, setAptosAddress] = useState<string | null>(null);
+  const [cardanoAddress, setCardanoAddress] = useState<string | null>(null);
+  const [mavrykAddress, setMavrykAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +63,6 @@ export default function DashboardScreen({ onLogout }: Props) {
 
       const wallets = dynamicClient.wallets.userWallets;
 
-      // Find EVM and SOL wallets
       let evmWallet = wallets.find((w) => w.chain === "EVM");
       let solWallet = wallets.find((w) => w.chain === "SOL");
 
@@ -51,7 +73,6 @@ export default function DashboardScreen({ onLogout }: Props) {
         await dynamicClient.wallets.embedded.createWallet({ chain: "Sol" });
       }
 
-      // Re-fetch wallets after creation
       const updatedWallets = dynamicClient.wallets.userWallets;
       evmWallet = updatedWallets.find((w) => w.chain === "EVM");
       solWallet = updatedWallets.find((w) => w.chain === "SOL");
@@ -62,11 +83,15 @@ export default function DashboardScreen({ onLogout }: Props) {
       setEvmAddress(evmWallet.address);
       setSolAddress(solWallet.address);
 
-      // Derive TRON address from EVM
+      // Deterministically derived chains (no extra signature required)
       setTronAddress(deriveTronAddress(evmWallet.address));
-
-      // Derive NEAR address from SOL
       setNearAddress(deriveNearAddress(solWallet.address));
+      setAptosAddress(deriveAptosAddress(solWallet.address));
+      setCardanoAddress(deriveCardanoAddress(solWallet.address));
+      setMavrykAddress(deriveMavrykAddress(solWallet.address));
+
+      // Cosmos, XRP, Starknet require secp256k1 pubkey recovery — derived lazily
+      // inside their respective screens when the user first opens that tab.
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -102,8 +127,14 @@ export default function DashboardScreen({ onLogout }: Props) {
   const tabs: { key: Tab; label: string; curve: string }[] = [
     { key: "ethereum", label: "ETH", curve: "ECDSA" },
     { key: "tron", label: "TRX", curve: "ECDSA" },
+    { key: "cosmos", label: "ATOM", curve: "ECDSA" },
+    { key: "xrp", label: "XRP", curve: "ECDSA" },
+    { key: "starknet", label: "STRK", curve: "Stark" },
     { key: "solana", label: "SOL", curve: "Ed25519" },
     { key: "near", label: "NEAR", curve: "Ed25519" },
+    { key: "aptos", label: "APT", curve: "Ed25519" },
+    { key: "cardano", label: "ADA", curve: "Ed25519" },
+    { key: "mavryk", label: "MVRk", curve: "Ed25519" },
   ];
 
   return (
@@ -115,7 +146,12 @@ export default function DashboardScreen({ onLogout }: Props) {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.tabBar}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabBar}
+        contentContainerStyle={styles.tabBarContent}
+      >
         {tabs.map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -133,7 +169,7 @@ export default function DashboardScreen({ onLogout }: Props) {
             <Text style={styles.tabCurve}>{tab.curve}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       <View style={styles.content}>
         {activeTab === "ethereum" && evmAddress && (
@@ -148,6 +184,18 @@ export default function DashboardScreen({ onLogout }: Props) {
         {activeTab === "near" && nearAddress && solAddress && (
           <NearScreen nearAddress={nearAddress} solAddress={solAddress} />
         )}
+        {activeTab === "aptos" && aptosAddress && solAddress && (
+          <AptosScreen aptosAddress={aptosAddress} solAddress={solAddress} />
+        )}
+        {activeTab === "cardano" && cardanoAddress && solAddress && (
+          <CardanoScreen cardanoAddress={cardanoAddress} solAddress={solAddress} />
+        )}
+        {activeTab === "mavryk" && mavrykAddress && solAddress && (
+          <MavrykScreen mavrykAddress={mavrykAddress} solAddress={solAddress} />
+        )}
+        {activeTab === "cosmos" && <CosmosScreen />}
+        {activeTab === "xrp" && <XrpScreen />}
+        {activeTab === "starknet" && <StarknetScreen />}
       </View>
     </View>
   );
@@ -204,17 +252,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   tabBar: {
-    flexDirection: "row",
+    flexGrow: 0,
     paddingHorizontal: 8,
-    gap: 4,
     marginBottom: 4,
   },
+  tabBarContent: {
+    gap: 4,
+    paddingRight: 8,
+  },
   tab: {
-    flex: 1,
     alignItems: "center",
     paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: "#1a1a2e",
+    minWidth: 56,
   },
   activeTab: {
     backgroundColor: "#2a2a5e",
@@ -222,7 +274,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#4a4af0",
   },
   tabLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#666",
   },
